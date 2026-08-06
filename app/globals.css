@@ -115,6 +115,7 @@ button { cursor: pointer; }
 .intro-stats div { display: grid; gap: 6px; }
 .intro-stats strong { color: var(--deep-sage); font: 400 27px Georgia, serif; letter-spacing: -1px; }
 .intro-stats span { color: #9aa8a1; font-size: 10px; }
+.connection-banner { margin: -22px 0 24px; padding: 12px 14px; border: 1px solid #f0c7b8; border-radius: 9px; background: #fff4ef; color: #a14f38; font-size: 11px; }
 
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) 276px; gap: 25px; align-items: start; }
 .todo-panel { min-width: 0; padding: 31px 31px 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 15px 34px rgba(43,70,56,.035); }

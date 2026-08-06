@@ -1,43 +1,17 @@
 "use client";
 
-import { FormEvent, startTransition, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Priority = "high" | "medium" | "low";
 type Filter = "all" | "active" | "completed";
 
 type Todo = {
-  id: string;
+  id: number;
   title: string;
   priority: Priority;
   completed: boolean;
   createdAt: string;
 };
-
-const STORAGE_KEY = "morrow-todos-v1";
-
-const seedTodos: Todo[] = [
-  {
-    id: "morning-routine",
-    title: "오늘 가장 중요한 일 하나 정하기",
-    priority: "high",
-    completed: false,
-    createdAt: "2026-08-07T08:30:00.000Z",
-  },
-  {
-    id: "inbox-zero",
-    title: "메일함 15분만 정리하기",
-    priority: "medium",
-    completed: false,
-    createdAt: "2026-08-07T09:10:00.000Z",
-  },
-  {
-    id: "walk",
-    title: "점심 후 가볍게 걷기",
-    priority: "low",
-    completed: true,
-    createdAt: "2026-08-07T07:45:00.000Z",
-  },
-];
 
 const priorityLabels: Record<Priority, string> = {
   high: "높음",
@@ -50,13 +24,6 @@ const priorityDescriptions: Record<Priority, string> = {
   medium: "여유 있게",
   low: "시간 나면",
 };
-
-function createTodoId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `todo-${Date.now()}`;
-}
 
 function formatTime(date: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -73,6 +40,15 @@ function formatToday() {
   }).format(new Date());
 }
 
+async function readApiError(response: Response, fallback: string) {
+  try {
+    const body = (await response.json()) as { error?: unknown };
+    return typeof body.error === "string" ? body.error : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function Home() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState("");
@@ -80,43 +56,41 @@ export default function Home() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [today, setToday] = useState("");
-  const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
 
-    queueMicrotask(() => {
-      if (cancelled) return;
-
-      const savedTodos = window.localStorage.getItem(STORAGE_KEY);
-      let nextTodos = seedTodos;
-
-      if (savedTodos) {
-        try {
-          const parsedTodos = JSON.parse(savedTodos) as Todo[];
-          nextTodos = Array.isArray(parsedTodos) ? parsedTodos : seedTodos;
-        } catch {
-          nextTodos = seedTodos;
+    fetch("/api/todos", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(await readApiError(response, "할 일을 불러오지 못했어요."));
         }
-      }
-
-      startTransition(() => {
-        setTodos(nextTodos);
-        setToday(formatToday());
-        setIsReady(true);
+        return (await response.json()) as Todo[];
+      })
+      .then((loadedTodos) => {
+        if (!cancelled) {
+          setTodos(loadedTodos);
+          setToday(formatToday());
+          setLoadError("");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : "데이터베이스 연결을 확인해주세요.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       });
-    });
 
     return () => {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (isReady) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-    }
-  }, [isReady, todos]);
 
   const completedCount = todos.filter((todo) => todo.completed).length;
   const activeCount = todos.length - completedCount;
@@ -136,38 +110,84 @@ export default function Home() {
     });
   }, [filter, query, todos]);
 
-  function addTodo(event: FormEvent<HTMLFormElement>) {
+  async function addTodo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = newTodo.trim();
 
     if (!title) return;
 
-    setTodos((currentTodos) => [
-      {
-        id: createTodoId(),
-        title,
-        priority,
-        completed: false,
-        createdAt: new Date().toISOString(),
-      },
-      ...currentTodos,
-    ]);
-    setNewTodo("");
-    setPriority("medium");
+    try {
+      const response = await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, priority }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "할 일을 저장하지 못했어요."));
+      }
+
+      const createdTodo = (await response.json()) as Todo;
+      setTodos((currentTodos) => [createdTodo, ...currentTodos]);
+      setNewTodo("");
+      setPriority("medium");
+      setLoadError("");
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "할 일을 저장하지 못했어요.");
+    }
   }
 
-  function toggleTodo(id: string) {
-    setTodos((currentTodos) =>
-      currentTodos.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)),
-    );
+  async function toggleTodo(id: number) {
+    const todo = todos.find((item) => item.id === id);
+    if (!todo) return;
+
+    try {
+      const response = await fetch(`/api/todos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !todo.completed }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "완료 상태를 저장하지 못했어요."));
+      }
+
+      const updatedTodo = (await response.json()) as Todo;
+      setTodos((currentTodos) => currentTodos.map((item) => (item.id === id ? updatedTodo : item)));
+      setLoadError("");
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "완료 상태를 저장하지 못했어요.");
+    }
   }
 
-  function deleteTodo(id: string) {
-    setTodos((currentTodos) => currentTodos.filter((todo) => todo.id !== id));
+  async function deleteTodo(id: number) {
+    try {
+      const response = await fetch(`/api/todos/${id}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "할 일을 삭제하지 못했어요."));
+      }
+
+      setTodos((currentTodos) => currentTodos.filter((todo) => todo.id !== id));
+      setLoadError("");
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "할 일을 삭제하지 못했어요.");
+    }
   }
 
-  function clearCompleted() {
-    setTodos((currentTodos) => currentTodos.filter((todo) => !todo.completed));
+  async function clearCompleted() {
+    try {
+      const response = await fetch("/api/todos?completed=true", { method: "DELETE" });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "완료한 일을 지우지 못했어요."));
+      }
+
+      setTodos((currentTodos) => currentTodos.filter((todo) => !todo.completed));
+      setLoadError("");
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "완료한 일을 지우지 못했어요.");
+    }
   }
 
   return (
@@ -299,6 +319,8 @@ export default function Home() {
           </div>
         </div>
 
+        {loadError && <div className="connection-banner" role="alert">{loadError}</div>}
+
         <div className="workspace-grid">
           <section className="todo-panel" aria-labelledby="focus-title">
             <div className="panel-heading">
@@ -372,8 +394,8 @@ export default function Home() {
             </div>
 
             <div className="todo-list" aria-live="polite">
-              {!isReady && <div className="empty-state loading-state"><span aria-hidden="true">…</span><h3>오늘의 일을 준비하고 있어요</h3><p>잠시만 기다려주세요.</p></div>}
-              {isReady && filteredTodos.map((todo) => (
+              {isLoading && <div className="empty-state loading-state"><span aria-hidden="true">…</span><h3>오늘의 일을 준비하고 있어요</h3><p>데이터베이스에서 할 일을 불러오는 중이에요.</p></div>}
+              {!isLoading && filteredTodos.map((todo) => (
                 <article className={`todo-item ${todo.completed ? "is-complete" : ""}`} key={todo.id}>
                   <button
                     className="check-button"
@@ -398,7 +420,7 @@ export default function Home() {
                   </button>
                 </article>
               ))}
-              {isReady && filteredTodos.length === 0 && (
+              {!isLoading && filteredTodos.length === 0 && (
                 <div className="empty-state">
                   <span aria-hidden="true">☼</span>
                   <h3>{query ? "검색 결과가 없어요" : "아직 보이는 일이 없어요"}</h3>

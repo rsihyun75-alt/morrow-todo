@@ -1,6 +1,6 @@
 import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-export const todos = pgTable("todos", {
+export const todos = pgTable("morrow_todos", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   title: text("title").notNull(),
   note: text("note").notNull().default("새 할 일 · 오늘"),

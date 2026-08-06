@@ -1,12 +1,19 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
       "version": "7",
       "when": 1786025164478,
       "tag": "0000_sharp_payback",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786035000000,
+      "tag": "0001_rename_todos_to_morrow_todos",
       "breakpoints": true
     }
   ]

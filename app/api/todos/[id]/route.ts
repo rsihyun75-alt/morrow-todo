@@ -19,7 +19,7 @@ export async function PATCH(request: Request, { params }: TodoRouteContext) {
     const body = (await request.json()) as { completed?: unknown };
 
     if (!id || typeof body.completed !== "boolean") {
-      return NextResponse.json({ error: "유효한 할 일 상태가 필요합니다." }, { status: 400 });
+      return NextResponse.json({ error: "유효한 완료 상태가 필요해요." }, { status: 400 });
     }
 
     const [updated] = await db
@@ -29,13 +29,13 @@ export async function PATCH(request: Request, { params }: TodoRouteContext) {
       .returning();
 
     if (!updated) {
-      return NextResponse.json({ error: "할 일을 찾지 못했습니다." }, { status: 404 });
+      return NextResponse.json({ error: "할 일을 찾지 못했어요." }, { status: 404 });
     }
 
     return NextResponse.json(updated);
   } catch (error) {
     console.error("Failed to update todo", error);
-    return NextResponse.json({ error: "할 일 상태를 저장하지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "완료 상태를 저장하지 못했어요." }, { status: 500 });
   }
 }
 
@@ -44,18 +44,18 @@ export async function DELETE(_request: Request, { params }: TodoRouteContext) {
     const id = await readId(params);
 
     if (!id) {
-      return NextResponse.json({ error: "유효한 할 일 ID가 필요합니다." }, { status: 400 });
+      return NextResponse.json({ error: "유효한 할 일 ID가 필요해요." }, { status: 400 });
     }
 
     const [deleted] = await db.delete(todos).where(eq(todos.id, id)).returning();
 
     if (!deleted) {
-      return NextResponse.json({ error: "할 일을 찾지 못했습니다." }, { status: 404 });
+      return NextResponse.json({ error: "할 일을 찾지 못했어요." }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Failed to delete todo", error);
-    return NextResponse.json({ error: "할 일을 삭제하지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "할 일을 삭제하지 못했어요." }, { status: 500 });
   }
 }
