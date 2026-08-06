@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "morrow — 오늘의 할 일",
-  description: "작은 루틴이 모여 더 나은 하루가 되는 To-do 앱",
+  description: "오늘에 집중하는 조용한 할 일 공간, morrow.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
