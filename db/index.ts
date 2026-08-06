@@ -2,15 +2,22 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
 
-const connectionString = process.env.DATABASE_URL;
+let database: ReturnType<typeof drizzle> | null = null;
 
-if (!connectionString) {
-  throw new Error("DATABASE_URL is missing. Add the PostgreSQL connection string to .env.local.");
+export function getDb() {
+  if (database) return database;
+
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is missing. Add it to the deployment environment.");
+  }
+
+  const client = postgres(connectionString, {
+    prepare: false,
+    max: 1,
+  });
+
+  database = drizzle(client, { schema });
+  return database;
 }
-
-const client = postgres(connectionString, {
-  prepare: false,
-  max: 1,
-});
-
-export const db = drizzle(client, { schema });

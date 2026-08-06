@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { todos } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,8 @@ const priorities = new Set(["high", "medium", "low"]);
 
 export async function GET() {
   try {
-    const rows = await db.select().from(todos).orderBy(desc(todos.createdAt), desc(todos.id));
+    const database = getDb();
+    const rows = await database.select().from(todos).orderBy(desc(todos.createdAt), desc(todos.id));
     return NextResponse.json(rows, {
       headers: { "Cache-Control": "no-store" },
     });
@@ -21,6 +22,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const database = getDb();
     const body = (await request.json()) as { title?: unknown; priority?: unknown };
     const title = typeof body.title === "string" ? body.title.trim() : "";
     const priority = typeof body.priority === "string" && priorities.has(body.priority) ? body.priority : "medium";
@@ -29,7 +31,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "할 일 제목을 입력해주세요." }, { status: 400 });
     }
 
-    const [created] = await db
+    const [created] = await database
       .insert(todos)
       .values({ title, priority: priority as "high" | "medium" | "low" })
       .returning();
@@ -43,13 +45,14 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const database = getDb();
     const completedOnly = new URL(request.url).searchParams.get("completed") === "true";
 
     if (!completedOnly) {
       return NextResponse.json({ error: "삭제 조건이 필요해요." }, { status: 400 });
     }
 
-    await db.delete(todos).where(eq(todos.completed, true));
+    await database.delete(todos).where(eq(todos.completed, true));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Failed to clear completed todos", error);
